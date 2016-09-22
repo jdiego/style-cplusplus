@@ -16,8 +16,9 @@ broadly aligns with the goals of this document.
     - [portability](#portability)
     - [undefined behavior](#undefined-behavior)
 * [style-ish concerns](#style-ish-concerns)
+* [namespaces](#namespaces)
+* [functions](#functions)
 * [inline functions, macros, and constexpr](#inline-macros-constexpr)
-* [namespaces]()
 
 ## <a name="goals"></a>goals and non-goals
 
@@ -377,6 +378,290 @@ float qux(float&& f);
 float qux_param = 1.0;
 auto qux_result = qux( qux_param );
 ```
+
+#### rule: open braces always go on their own line, except for `if-else if-else`
+
+Opening a new scope should always occupy it's own line, except when writing
+`if-else if-else` chains.
+
+```c++
+// good
+int main (int argc, char ** argv)
+{
+    // do things...
+}
+
+void spin (unsgined param)
+{
+    while (param--)
+    {
+        // do things..
+    }
+}
+
+template <typename Integral, std::size_t N>
+std::uint64_t count_ones_and_twos (Integral const (& array) [N])
+{
+    std::uint64_t count = 0;
+
+    for (std::size_t i = 0; i < N; ++i)
+    {
+        if (array [i] == 1) {
+            count += 1;
+        } else if (array [i] == 2) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
+// bad
+template <typename Integral, std::size_t N>
+std::uint64_t count_threes_and_fours (Integral const (& array) [N]) {
+    std::uint64_t count = 0;
+
+    for (std::size_t i = 0; i < N; ++i) {
+        if (array [i] == 3)
+        {
+            count += 1;
+        }
+        else if (array [i] == 4)
+        {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+```
+
+#### rule: always use braces, even for single line cases
+
+```c++
+// good
+if (condition) {
+    // do thing...
+} else {
+    // do other thing...
+}
+
+// bad
+if (condition)
+    // do thing...
+else
+    // do other thing...
+```
+
+## <a name="namespaces"></a>namespaces
+
+#### rule: use namespaces to separate logical components of a project
+
+More than one namespace for a project should be used if there are logically separate
+components. For very small projects with limited scope a single namespace suffices.
+
+```c++
+// good
+// in project/include/domain_specific_language.hpp
+namespace project
+{
+namespace dsl
+{
+    class lexer
+    {
+        // ...
+    };
+
+    class parser
+    {
+        // ...
+    };
+
+    class interpreter
+    {
+        // ...
+    };
+}   // namespace dsl
+}   // namespace project
+
+// in project/include/business_logic.hpp
+namespace project
+{
+namespace business_logic
+{
+    class widget
+    {
+        // ...
+    };
+}   // namespace business_logic
+}   // namespace project
+
+// in project/src/main.cpp
+int main (void)
+{
+    project::dsl::interpreter dsl_interpreter;
+    project::business_logic::widget business_widget;
+
+    // ...
+}
+```
+
+#### rule: use anonymous namespaces in source files instead of `static` for translation unit local types
+
+Anonymous namespaces allow for the definition of types local to a translation unit.
+
+```c++
+// good, separate identifiers in each translation unit
+// in a.cpp
+namespace project
+{
+namespace
+{
+    // okay, special_resource cannot be named outside of a.cpp
+    class special_resource
+    {
+        // ...
+    };
+}   // anonymous namespace
+
+    void method_a (void)
+    {
+        special_resource r;
+        // do important things...
+    }
+}   // namespace project
+
+// in b.cpp
+namespace project
+{
+namespace
+{
+    // okay, special_resource cannot be named outside of b.cpp, it also
+    // does not conflict with the declaration of special_resource in a.cpp
+    class special_resource
+    {
+        // ...
+    };
+}   // anonymous namespace
+
+    void method_b (void)
+    {
+        special_resource r;
+        // do important things...
+    }
+}   // namespace project
+
+// in main.cpp
+int main (void)
+{
+    // all okay! the special_resource classes for each file do not conflict
+    project::method_a ();
+    project::method_b ();
+}
+
+// bad
+// in x.cpp
+namespace project
+{
+    // this won't compile! static qualifier for type declarations is not allowed
+    /*
+    static class special_resource
+    {
+        // ...
+    };
+    */
+
+    // bad, special_resource is nameable from outside x.cpp, but is meant to be
+    // translation unit local
+    class special_resource
+    {
+        //...
+    };
+
+    void method_x (void)
+    {
+        special_resource r;
+        // do important things...
+    }
+}   // namespace project
+```
+
+#### rule: hide implementation details of header files within (something analogous to) `namespace detail`
+
+Using a regular namespace such as `namespace detail` or `namespace util` within header files
+signals to the consumer that identifiers contained within are not part of the public API.
+
+```c++
+// good
+// in a.hpp
+namespace project
+{
+namespace detail
+{
+    // Okay, inclusion in namespace detail signals that it should not be used.
+    template <typename T>
+    T special_utility_method (T t)
+    {
+        // ...
+    }
+}   // namespace detail
+
+    template <typename T>
+    T public_api_method_a (T t)
+    {
+        // do useful work behind the scenes
+        auto result = detail::special_utility_method (t);
+        // ...
+    }
+}   // namespace project
+
+// bad
+// in b.hpp
+namespace project
+{
+    // Not okay! This is not meant to be part of the public API.
+    template <typename T>
+    T special_utility_method (T t)
+    {
+        // ...
+    }
+
+    template <typename T>
+    T public_api_method_b (T t)
+    {
+        // do useful work behind the scenes
+        auto result = detail::special_utility_method (t);
+        // ...
+    }
+}   // namespace project
+
+// definitely really bad
+// in c.hpp
+namespace project
+{
+namespace
+{
+    // Not okay! An entirely new copy of special_utility_method will be generated by
+    // the compiler for EVERY translation unit this header is included in, which could
+    // be very expensive for compile times.
+    template <typename T>
+    T special_utility_method (T t)
+    {
+        // ...
+    }
+}
+
+    template <typename T>
+    T public_api_method_c (T t)
+    {
+        // do useful work behind the scenes
+        auto result = detail::special_utility_method (t);
+        // ...
+    }
+}   // namespace project
+```
+
+## <a name="functions"></a>functions
 
 ## <a name="inline-macros-constexpr"></a>inline functions, macros, and constexpr
 
