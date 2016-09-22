@@ -308,16 +308,11 @@ static constexpr bool cool_platform = true;
 static constexpr bool cool_platform = false;
 #endif
 
-constexpr bool has_cool_platform (void)
-{
-    return cool_platform;
-}
-
 // in .cpp file
 // good: select what to do using constexpr if
 decltype (auto) do_cool_thing (void)
 {
-    constexpr if (has_cool_platform ()) {
+    constexpr if (cool_platform) {
         return // invoke cool platform method...
     } else {
         return // invoke not-as-cool generic fallback...
