@@ -16,6 +16,8 @@ broadly aligns with the goals of this document.
     - [portability](#portability)
     - [undefined behavior](#undefined-behavior)
 * [style-ish concerns](#style-ish-concerns)
+* [inline functions, macros, and constexpr](#inline-macros-constexpr)
+* [namespaces]()
 
 ## <a name="goals"></a>goals and non-goals
 
@@ -298,6 +300,118 @@ For the same reason as above, `UPPER_SNAKE_CASE` should be used for macros.
 #endif
 ```
 
+#### rule: read and write types from right-to-left; also separate `*` and `&`
+
+The right-to-left rule respects the order in which pointer and reference types
+are written, so for consistency types should always be written and read from
+right-to-left. Also, pointer and reference qualifiers should be separated from
+`const` and `volatile` qualifiers as well as type names.
+
+```c++
+// good: x is a const integer
+int const x = 0;
+
+// good: xp is a const pointer to const interger
+int const * const xp = &x;
+
+// good: xr is a reference to const integer
+int const & xr = x;
+
+// good: xpr is a reference to a const pointer to a const integer
+int const * const & xpr = xp;
+```
+
+This also respects the left-right-left rule for array types
+
+```c++
+// good: xarr is reference to an array of 10 const integers
+int const (& xarr) [10];
+
+// good: do_something is a function that takes an reference to an M by N array
+// of const T and returns the reference to the M by N array.
+template <typename T, std::size_t M, std::size_t N>
+T (& do_something (T (&) [M][N])) [M][N];
+
+// better: but you should prefer trailing return types anyways
+template <typename T, std::size_t M, std::size_t N>
+auto do_something (T (&) [M][N]) -> T (&) [M][N];
+```
+
+#### rule: separate identifiers from parentheses, brackets, and angle-brackets
+
+For readability, parentheses, brackets, and angle-brackets should not be placed
+directly adjacent to identifiers. Prefer separation by whitespace except in the
+case of function arguments.
+
+```c++
+// good
+int foo (int i);
+
+auto f = foo (1);
+
+template <typename T>
+T bar (T const & t);
+
+template <>
+int bar <int> (int const & i);
+
+int bar_param = 1;
+auto bar_result = bar (bar_param);
+
+// bad
+int baz( int i );
+
+auto b = baz( 1 );
+
+template<typename U>
+U qux(U&& u);
+
+template<>
+float qux(float&& f);
+
+float qux_param = 1.0;
+auto qux_result = qux( qux_param );
+```
+
+## <a name="inline-macros-constexpr"></a>inline functions, macros, and constexpr
+
+#### rule: don't mark functions as `inline` unless you have sufficient evidence
+
+Unless you have overwhelming evidence from profiling that inlining a function
+call will improve performance, do not mark functions as inline. The compiler is
+usually better equipped to deciding what functions to inline than you are, so
+let it do it's job. Moreover, the `inline` keyword is only a hint to the
+compiler, not a directive.
+
+#### rule: don't use macros as a substitute for functions
+
+Function-like macros should be avoided. Prefer using `constexpr`-qualified
+free-functions.
+
+```c++
+// good: use a constexpr-qualified free function
+template <typename T>
+constexpr T max (T a, T b)
+{
+    return a > b ? a : b;
+}
+
+// later on...
+auto max_value = max (a++, b); // okay, behaves as expected
+
+// bad: function-like macros can be easily misused
+#defined MAX(a, b) (a) > (b) ? (a) : (b)
+
+// later on...
+auto max_value = MAX(a++, b); // whoops! this is not what we wanted
+```
+
+#### rule: use `constexpr` instead of `#define` for constants
+
+Preprocessor `#define`s can conflict with macros from other included header
+files, and do not respect namespace boundaries. Therefore, `constexpr` variables
+should be preferred for constants and placed in appropriate namespaces.
+
 #### rule: as of C++17 use `constexpr if` in place of preprocessor `#if`, `#else`, and `#endif`
 
 ```c++
@@ -330,27 +444,4 @@ decltype (auto) do_cool_thing (void)
     return // invoke not-as-cool generic fallback
 #endif
 }
-```
-
-#### rule: don't use macros as a substitute for functions
-
-Function-like macros should be avoided. Prefer using `constexpr`-qualified
-free-functions.
-
-```c++
-// good: use a constexpr-qualified free function
-template <typename T>
-constexpr T max (T a, T b)
-{
-    return a > b ? a : b;
-}
-
-// later on...
-auto max_value = max (a++, b); // okay, behaves as expected
-
-// bad: function-like macros can be easily misused
-#defined MAX(a, b) (a) > (b) ? (a) : (b)
-
-// later on...
-auto max_value = MAX(a++, b); // whoops! this is not what we wanted
 ```
