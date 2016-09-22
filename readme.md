@@ -300,6 +300,11 @@ For the same reason as above, `UPPER_SNAKE_CASE` should be used for macros.
 #endif
 ```
 
+#### rule: template parameters should be `UpperCamelCase`
+
+This is the only exception to the above rule. Again, it is for consistency
+with the standard library.
+
 #### rule: read and write types from right-to-left; also separate `*` and `&`
 
 The right-to-left rule respects the order in which pointer and reference types
