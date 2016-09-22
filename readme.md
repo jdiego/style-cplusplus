@@ -301,25 +301,27 @@ For the same reason as above, `UPPER_SNAKE_CASE` should be used for macros.
 #### rule: as of C++17 use `constexpr if` in place of preprocessor `#if`, `#else`, and `#endif`
 
 ```c++
-// in .hpp file
+// hidden away in .hpp file
+constexpr bool cool_platform (void)
+{
 #if [some cool platform is being used]
-static constexpr bool cool_platform = true;
+    return true;
 #else
-static constexpr bool cool_platform = false;
+    return false;
 #endif
+}
 
-// in .cpp file
-// good: select what to do using constexpr if
+// good: select what to do using constexpr if in .cpp file
 decltype (auto) do_cool_thing (void)
 {
-    constexpr if (cool_platform) {
+    constexpr if (cool_platform ()) {
         return // invoke cool platform method...
     } else {
         return // invoke not-as-cool generic fallback...
     }
 }
 
-// bad: selection with macros
+// bad: selection with macros inside .cpp file
 decltype (auto) do_cool_thing (void)
 {
 #if [some cool platform is being used]
